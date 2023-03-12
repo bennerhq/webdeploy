@@ -20,6 +20,9 @@ if len(sys.argv) > 2:
 if input_filename == output_filename:
     sys.exit("Ups, input and output filename are the same!")
 
+now = datetime.now()
+now_string = now.strftime("%Y/%m/%d %H:%M:%S")
+
 # Read source file
 #
 print("<", input_filename)
@@ -48,6 +51,8 @@ for tag in soup.find_all('script'):
 
 if len(scripts) != 0:
     # insert scripts if they exists
+    scripts = "\n/* AUTO GENERATED */\nconst DEPLOY_TIME_STAMP = '" + now_string + "';\n\n" + scripts;
+
     new_script = soup.new_tag('script')
     new_script.string = scripts
     soup.html.body.append(new_script)
@@ -99,8 +104,6 @@ for tag in soup.find_all('img', src=True):
 # ---
 # Save onto a single html formattet file
 #
-now = datetime.now()
-now_string = now.strftime("%Y/%m/%d %H:%M:%S")
 print(">", output_filename, '|', now_string)
 
 with open(output_filename, "w", encoding="utf-8") as outfile:
