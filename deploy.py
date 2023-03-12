@@ -2,10 +2,11 @@
 
 import sys
 import base64
+from datetime import datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
 
-# ------
+# ---
 # Prepare input and output filenames
 #
 input_filename = "index.html"
@@ -19,14 +20,13 @@ if len(sys.argv) > 2:
 if input_filename == output_filename:
     sys.exit("Ups, input and output filename are the same!")
 
-# ------
 # Read source file
 #
 print("<", input_filename)
 original_html_text = Path(input_filename).read_text(encoding="utf-8")
 soup = BeautifulSoup(original_html_text, features="html.parser")
 
-# ------
+# ---
 # Find <script> tags. 
 #
 # Example: <script src="js/somescript.js"></script> or <script> ... </script>
@@ -46,14 +46,14 @@ for tag in soup.find_all('script'):
 
     tag.extract()
 
-# insert script element
 if len(scripts) != 0:
+    # insert scripts if they exists
     new_script = soup.new_tag('script')
     new_script.string = scripts
     soup.html.body.append(new_script)
 
-# ------
-# Find <link> tags. 
+# ---
+# Find <link> tags.
 #
 # # Example: <link rel="stylesheet" href="css/somestyle.css">
 #
@@ -68,14 +68,13 @@ for tag in soup.find_all('link', rel="stylesheet", href=True):
 
     tag.extract()
 
-
-# insert style element
 if len(styles) != 0:
+    # insert styles if they exists
     new_style = soup.new_tag('style')
     new_style.string = styles
     soup.html.head.append(new_style)
 
-# ------
+# ---
 # Find <img> tags. 
 #
 # Example: <img src="img/example.svg">
@@ -97,10 +96,12 @@ for tag in soup.find_all('img', src=True):
         base64_file_content = base64.b64encode(file_content)
         tag['src'] = "data:image/png;base64, {}".format(base64_file_content.decode('ascii'))
 
-# ------
+# ---
 # Save onto a single html formattet file
 #
-print(">", output_filename)
+now = datetime.now()
+now_string = now.strftime("%Y/%m/%d %H:%M:%S")
+print(">", output_filename, '|', now_string)
 
 with open(output_filename, "w", encoding="utf-8") as outfile:
     outfile.write(str(soup))
