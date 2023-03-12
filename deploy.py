@@ -10,7 +10,8 @@ from bs4 import BeautifulSoup
 # Prepare input and output filenames
 #
 input_filename = "index.html"
-output_filename = "index.deploy.html";
+output_filename = "index.deploy.html"
+config_filename = ".deploy.rc"
 
 if len(sys.argv) > 1:
     input_filename = sys.argv[1]
@@ -20,9 +21,21 @@ if len(sys.argv) > 2:
 if input_filename == output_filename:
     sys.exit("Ups, input and output filename are the same!")
 
+# ---
+# Handle build stamp and number
+#
 now = datetime.now()
 now_string = now.strftime("%Y/%m/%d %H:%M:%S")
 
+try:
+    build_no  = Path(config_filename).read_text(encoding="utf-8")
+except OSError:
+    build_no = "0"
+
+build_no = str(int(build_no) + 1)
+Path(config_filename).write_text(build_no, encoding="utf-8")
+
+# ---
 # Read source file
 #
 print("<", input_filename)
@@ -49,13 +62,12 @@ for tag in soup.find_all('script'):
 
     tag.extract()
 
-if len(scripts) != 0:
-    # insert scripts if they exists
-    scripts = scripts + "\n\n/* AUTO GENERATED */\nDEPOLY_VERSION = true;\nDEPLOY_TIME_STAMP = '" + now_string + "';\n\n";
+# insert scripts if they exists
+scripts = scripts + "\n\n/* AUTO GENERATED */\nDEPOLY_VERSION = true;\nDEPOLY_BUILD_NO = " + build_no + ";\nDEPLOY_TIME_STAMP = '" + now_string + "';\n\n";
 
-    new_script = soup.new_tag('script')
-    new_script.string = scripts
-    soup.html.body.append(new_script)
+new_script = soup.new_tag('script')
+new_script.string = scripts
+soup.html.body.append(new_script)
 
 # ---
 # Find <link> tags.
@@ -104,7 +116,7 @@ for tag in soup.find_all('img', src=True):
 # ---
 # Save onto a single html formattet file
 #
-print(">", output_filename, '|', now_string)
+print(">", output_filename, '|', now_string, " build ", build_no)
 
 with open(output_filename, "w", encoding="utf-8") as outfile:
     outfile.write(str(soup))
