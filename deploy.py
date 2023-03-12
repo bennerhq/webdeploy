@@ -5,6 +5,9 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 import base64
 
+# ------
+# Prepare input and output filenames
+#
 input_filename = "index.html"
 output_filename = "deploy." + input_filename
 
@@ -12,6 +15,9 @@ if len(sys.argv) > 1:
     input_filename = sys.argv[1]
 if len(sys.argv) > 2:
     output_filename = sys.argv[2]
+
+if input_filename == output_filename:
+    sys.exit("Ups, input and output filename are the same!")
 
 # ------
 # Read source file
