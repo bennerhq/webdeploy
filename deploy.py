@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 
 import sys
-from bs4 import BeautifulSoup
-from pathlib import Path
 import base64
+from pathlib import Path
+from bs4 import BeautifulSoup
 
 # ------
 # Prepare input and output filenames
@@ -27,21 +27,21 @@ original_html_text = Path(input_filename).read_text(encoding="utf-8")
 soup = BeautifulSoup(original_html_text, features="html.parser")
 
 # ------
-# Find script tags. example: <script src="js/somescript.js"></script>
+# Find <script> tags. 
+#
+# Example: <script src="js/somescript.js"></script> or <script> ... </script>
 #
 scripts = ""
 for tag in soup.find_all('script'):
     if tag.has_attr('src'):
         filename = tag['src'].strip()
-        print("+ script  ", filename)
+        print("[script] ", filename)
 
         file_text = Path(filename).read_text(encoding="utf-8")
 
-        # remove the tag from soup
-
         scripts += "\n" + file_text + "\n"
     else:
-        print("+ script   <script>")
+        print("[script]  <script>")
         scripts += "\n" +  tag.string + "\n"
 
     tag.extract()
@@ -53,19 +53,21 @@ if len(scripts) != 0:
     soup.html.body.append(new_script)
 
 # ------
-# Find link tags. example: <link rel="stylesheet" href="css/somestyle.css">
+# Find <link> tags. 
+#
+# # Example: <link rel="stylesheet" href="css/somestyle.css">
 #
 styles = ""
-for tag in soup.find_all('link', href=True, rel="stylesheet" ):
+for tag in soup.find_all('link', rel="stylesheet", href=True):
     filename = tag['href'].strip()
-    print("+ style   ", filename)
+    print("[style]  ", filename)
 
     file_text = Path(filename).read_text(encoding="utf-8")
 
-    # remove the tag from soup
+    styles += "\n" + file_text + "\n"
+
     tag.extract()
 
-    styles += "\n" + file_text + "\n"
 
 # insert style element
 if len(styles) != 0:
@@ -74,15 +76,18 @@ if len(styles) != 0:
     soup.html.head.append(new_style)
 
 # ------
-# Find image tags.
+# Find <img> tags. 
+#
+# Example: <img src="img/example.svg">
 #
 for tag in soup.find_all('img', src=True):
     filename = tag['src'].strip()
-    print("+ image   ", filename)
+    print("[image]  ", filename)
 
     if filename.endswith('.svg'):
         file_text = Path(filename).read_text(encoding="utf-8")
 
+        # replace filename with svg content of the file
         svg = BeautifulSoup(file_text, "xml")
         tag.replace_with(svg)
     else:
@@ -93,7 +98,7 @@ for tag in soup.find_all('img', src=True):
         tag['src'] = "data:image/png;base64, {}".format(base64_file_content.decode('ascii'))
 
 # ------
-# Save into one file
+# Save onto a single html formattet file
 #
 print(">", output_filename)
 
