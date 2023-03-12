@@ -6,6 +6,20 @@ from datetime import datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
 
+def read_file(filename, utf8 = True, res = None):
+    try:
+        if utf8:
+            file_content = Path(filename).read_text(encoding="utf-8")
+        else:
+            file_content = Path(filename).read_bytes()
+    except OSError:
+        if res == None:
+            sys.exit("Ups, can't read " + filename)
+        else:
+            file_content = res
+
+    return file_content
+
 # ---
 # Prepare input and output filenames
 #
@@ -27,11 +41,7 @@ if input_filename == output_filename:
 now = datetime.now()
 now_string = now.strftime("%Y/%m/%d %H:%M:%S")
 
-try:
-    build_no  = Path(config_filename).read_text(encoding="utf-8")
-except OSError:
-    build_no = "0"
-
+build_no = read_file(config_filename, True, "0")
 build_no = str(int(build_no) + 1)
 Path(config_filename).write_text(build_no, encoding="utf-8")
 
@@ -39,7 +49,7 @@ Path(config_filename).write_text(build_no, encoding="utf-8")
 # Read source file
 #
 print("<", input_filename)
-original_html_text = Path(input_filename).read_text(encoding="utf-8")
+original_html_text = read_file(input_filename)
 soup = BeautifulSoup(original_html_text, features="html.parser")
 
 # ---
@@ -53,7 +63,7 @@ for tag in soup.find_all('script'):
         filename = tag['src'].strip()
         print("[script] ", filename)
 
-        file_text = Path(filename).read_text(encoding="utf-8")
+        file_text = read_file(filename)
 
         scripts += "\n" + file_text + "\n"
     else:
@@ -79,7 +89,7 @@ for tag in soup.find_all('link', rel="stylesheet", href=True):
     filename = tag['href'].strip()
     print("[style]  ", filename)
 
-    file_text = Path(filename).read_text(encoding="utf-8")
+    file_text = read_file(filename)
 
     styles += "\n" + file_text + "\n"
 
@@ -101,13 +111,13 @@ for tag in soup.find_all('img', src=True):
     print("[image]  ", filename)
 
     if filename.endswith('.svg'):
-        file_text = Path(filename).read_text(encoding="utf-8")
+        file_text = read_file(filename)
 
         # replace filename with svg content of the file
         svg = BeautifulSoup(file_text, "xml")
         tag.replace_with(svg)
     else:
-        file_content = Path(filename).read_bytes()
+        file_content = read_file(filename, False)
 
         # replace filename with base64 of the content of the file
         base64_file_content = base64.b64encode(file_content)
@@ -118,5 +128,7 @@ for tag in soup.find_all('img', src=True):
 #
 print(">", output_filename, '|', now_string, " build ", build_no)
 
-with open(output_filename, "w", encoding="utf-8") as outfile:
-    outfile.write(str(soup))
+try:
+    Path(output_filename).write_text(str(soup), encoding="utf-8")
+except OSError:
+    sys.exit("Ups, can't write " + output_filename)
