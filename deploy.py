@@ -1,17 +1,23 @@
 #!/usr/bin/python3
 
+import sys
 from bs4 import BeautifulSoup
 from pathlib import Path
 import base64
 
-start_filename = "index.html"
-final_filename = "deploy." + start_filename
+input_filename = "index.html"
+output_filename = "deploy." + input_filename
+
+if len(sys.argv) > 1:
+    input_filename = sys.argv[1]
+if len(sys.argv) > 2:
+    output_filename = sys.argv[2]
 
 # ------
 # Read source file
 #
-print("<", start_filename)
-original_html_text = Path(start_filename).read_text(encoding="utf-8")
+print("<", input_filename)
+original_html_text = Path(input_filename).read_text(encoding="utf-8")
 soup = BeautifulSoup(original_html_text, features="html.parser")
 
 # ------
@@ -84,7 +90,7 @@ for tag in soup.find_all('img', src=True):
 # ------
 # Save into one file
 #
-print(">", final_filename)
+print(">", output_filename)
 
-with open(final_filename, "w", encoding="utf-8") as outfile:
+with open(output_filename, "w", encoding="utf-8") as outfile:
     outfile.write(str(soup))
