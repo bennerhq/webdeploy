@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 # Prepare input and output filenames
 #
 input_filename = "index.html"
-output_filename = "deploy." + input_filename
+output_filename = "index.deploy.html";
 
 if len(sys.argv) > 1:
     input_filename = sys.argv[1]
@@ -51,7 +51,7 @@ for tag in soup.find_all('script'):
 
 if len(scripts) != 0:
     # insert scripts if they exists
-    scripts = "\n/* AUTO GENERATED */\nconst DEPLOY_TIME_STAMP = '" + now_string + "';\n\n" + scripts;
+    scripts = scripts + "\n\n/* AUTO GENERATED */\nDEPOLY_VERSION = true;\nDEPLOY_TIME_STAMP = '" + now_string + "';\n\n";
 
     new_script = soup.new_tag('script')
     new_script.string = scripts
