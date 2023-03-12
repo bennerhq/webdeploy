@@ -56,17 +56,16 @@ if len(scripts) != 0:
 # Find link tags. example: <link rel="stylesheet" href="css/somestyle.css">
 #
 styles = ""
-for tag in soup.find_all('link', href=True):
-    if tag["rel"][0] == "stylesheet":
-        filename = tag['href'].strip()
-        print("+ style   ", filename)
+for tag in soup.find_all('link', href=True, rel="stylesheet" ):
+    filename = tag['href'].strip()
+    print("+ style   ", filename)
 
-        file_text = Path(filename).read_text(encoding="utf-8")
+    file_text = Path(filename).read_text(encoding="utf-8")
 
-        # remove the tag from soup
-        tag.extract()
+    # remove the tag from soup
+    tag.extract()
 
-        styles += "\n" + file_text + "\n"
+    styles += "\n" + file_text + "\n"
 
 # insert style element
 if len(styles) != 0:
