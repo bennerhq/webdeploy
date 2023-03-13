@@ -1,10 +1,28 @@
 #!/usr/bin/python3
 
+#
+# The main purpose of the project to make it extreamly easy to upload a
+# "web application" by uploading a single .html file
+#
+# This is done by reading ./index.html and creating one fil (./index.deploy.html) 
+# that containes all external files refarnces (scripts, styles and images).
+# index.deploy.html is a self containes "application" without any dependecies
+# or referances to external files.
+#
+# It's not a "bullet proff" solution, but for simple "web application"
+# it's okay!
+#
+# /benner, 2023
+# jens@bennerhq.com
+#
+
+import os
 import sys
 import base64
 from datetime import datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
+import configparser
 
 def read_file(filename, utf8 = True, res = None):
     try:
@@ -23,27 +41,53 @@ def read_file(filename, utf8 = True, res = None):
 # ---
 # Prepare input and output filenames
 #
-input_filename = "index.html"
-output_filename = "index.deploy.html"
-config_filename = ".deploy.rc"
+basename = os.path.basename(sys.argv[0])
+config_filename = "." + basename
 
+input_filename = "index.html"
+output_filename = basename + ".index.html"
 if len(sys.argv) > 1:
     input_filename = sys.argv[1]
 if len(sys.argv) > 2:
     output_filename = sys.argv[2]
 
-if input_filename == output_filename:
-    sys.exit("Ups, input and output filename are the same!")
-
 # ---
-# Handle build stamp and number
+# Handle confile file and build number
 #
 now = datetime.now()
 now_string = now.strftime("%Y/%m/%d %H:%M:%S")
 
-build_no = read_file(config_filename, True, "0")
-build_no = str(int(build_no) + 1)
-Path(config_filename).write_text(build_no, encoding="utf-8")
+try:
+    config = configparser.ConfigParser()
+    config.read(config_filename)
+except Exception as e:
+    pass
+
+try:
+    input_filename = config["files"]["input"]
+except Exception as e:
+    pass
+
+try:
+    output_filename = config["files"]["output"]
+except Exception as e:
+    pass
+
+try:
+    build_no = config["build"]["number"]
+    build_no = str(int(build_no) + 1)
+except Exception as e:
+    build_no = "0"
+    config["build"] = {}
+
+config["build"]["number"] = build_no
+config["build"]["time_stamp"] = now_string
+
+with open(config_filename, 'w') as configfile:
+  config.write(configfile)
+
+if input_filename == output_filename:
+    sys.exit("Ups, input and output filename are the same!")
 
 # ---
 # Read source file
@@ -73,7 +117,7 @@ for tag in soup.find_all('script'):
     tag.extract()
 
 # insert scripts if they exists
-scripts = scripts + "\n\n/* AUTO GENERATED */\nDEPOLY_VERSION = true;\nDEPOLY_BUILD_NO = " + build_no + ";\nDEPLOY_TIME_STAMP = '" + now_string + "';\n\n";
+scripts += "\n\n/* AUTO GENERATED */\nDEPOLY_VERSION = true;\nDEPOLY_BUILD_NO = " + build_no + ";\nDEPLOY_TIME_STAMP = '" + now_string + "';\n\n";
 
 new_script = soup.new_tag('script')
 new_script.string = scripts
@@ -124,9 +168,9 @@ for tag in soup.find_all('img', src=True):
         tag['src'] = "data:image/png;base64, {}".format(base64_file_content.decode('ascii'))
 
 # ---
-# Save onto a single html formattet file
+# Save onto a single html file
 #
-print(">", output_filename, '|', now_string, " build ", build_no)
+print("> " + output_filename + ' | ' + now_string + ", build #" + build_no)
 
 try:
     Path(output_filename).write_text(str(soup), encoding="utf-8")
