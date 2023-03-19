@@ -57,7 +57,7 @@ def read_file(filename, utf8 = True, res = None):
     return content
 
 def minify(cli, content):
-    if minificss_cli:
+    if cli:
         result = subprocess.run(cli.split(), 
                                 stdout=subprocess.PIPE, 
                                 stderr=subprocess.PIPE, 
