@@ -1,6 +1,17 @@
-This python script reads index.html, from the current dir, and writes the file deploy.inddx.html.
 
-deploy.index.html will contain all javascript and css file referances from index.html.
-Furthermore all "img" are embedded into deploy.index.html.
+The main purpose of the project to make it extreamly easy to upload a
+"web application" by uploading a single .html file
 
-This makes it easy to deoply a simple web app
+This is done by reading ./index.html and creating one fil (./index.deploy.html) 
+that containes all external files refarnces (scripts, styles and images).
+index.deploy.html is a self containes "application" without any dependecies
+or referances to external files.
+
+It's not a "bullet proff" solution, but for simple "web application"
+it's okay!
+
+This version is inspired / extended from this stackoverflow post
+https://stackoverflow.com/questions/44646481/merging-js-css-html-into-single-html
+
+/benner, 2023
+jens@bennerhq.com
