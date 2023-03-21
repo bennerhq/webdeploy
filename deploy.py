@@ -22,12 +22,13 @@
 import os
 import subprocess
 import sys
+import os.path
 import base64
+import configparser
+import htmlmin
 from datetime import datetime
 from pathlib import Path
-import configparser
 from bs4 import BeautifulSoup
-import htmlmin
 
 class bcolors:
     HEADER      = '\033[95m'
@@ -37,10 +38,13 @@ class bcolors:
     WARNING     = '\033[93m'
     YELLOW      = '\033[93m'
     MAGENTA     = '\033[95m'
+    WHITE       = '\u001b[37m'
     FAIL        = '\033[91m'
     ENDC        = '\033[0m'
     BOLD        = '\033[1m'
     UNDERLINE   = '\033[4m'
+    BG_YELLOW   = '\u001b[43;1m'
+    BG_RED      = '\u001b[41;1m'
 
 def read_file(filename, utf8 = True, res = None):
     try:
@@ -70,12 +74,31 @@ def minify(cli, content):
 
     return content
 
+def parse_filename(filename, type):
+    filename = filename.strip()
+
+    idx = filename.find("+")
+    if idx != -1:
+        return False
+
+    idx = filename.find("?")
+    if idx != -1:
+        filename = filename[:idx]
+
+    type = ("[" + type + "]").ljust(10, " ")
+
+    if filename in exclude_files:
+        print(type + filename + bcolors.WARNING + "  excluded" + bcolors.ENDC)
+        return False
+
+    print(type + filename)
+    return filename
 
 # ---
 # Prepare input and output filenames
 #
-basename = os.path.basename(sys.argv[0])
-config_filename = "." + basename
+base_dir_pair = os.path.split(sys.argv[0])
+
 minifijs_cli = "uglifyjs"
 minificss_cli = "uglifycss"
 
@@ -87,7 +110,7 @@ else:
 if len(sys.argv) > 2:
     output_filename = sys.argv[2]
 else:
-    output_filename = basename + ".index.html"
+    output_filename = base_dir_pair[1] + ".index.html"
 
 # ---
 # Handle config file and build number
@@ -95,11 +118,23 @@ else:
 now = datetime.now()
 now_string = now.strftime("%Y/%m/%d %H:%M:%S")
 
-try:
-    config = configparser.ConfigParser()
+config = configparser.ConfigParser()
+
+config_filename = "./." + base_dir_pair[1]
+if os.path.exists(config_filename):
+    print("< ", config_filename)
+else:
+    config_filename = base_dir_pair[0] + "/." + base_dir_pair[1]
+    if not os.path.exists(config_filename):
+        config_filename = None
+if config_filename is not None:
     config.read(config_filename)
+
+try:
+    exclude_files = config["content"]["exclude"]
+    exclude_files = exclude_files.split(":")
 except Exception as e:
-    pass
+    exclude_files = []
 
 try:
     minifijs_cli = config["minify"]["js_cli"]
@@ -148,8 +183,9 @@ soup = BeautifulSoup(original_html_text, features="html.parser")
 scripts = ""
 for tag in soup.find_all('script'):
     if tag.has_attr('src'):
-        filename = tag['src'].strip()
-        print("[script] ", filename)
+        filename = parse_filename(tag['src'], "script")
+        if filename is False:
+            continue
 
         file_text = read_file(filename)
 
@@ -183,8 +219,9 @@ soup.html.body.append(new_script)
 #
 styles = ""
 for tag in soup.find_all('link', rel="stylesheet", href=True):
-    filename = tag['href'].strip()
-    print("[style]  ", filename)
+    filename = parse_filename(tag['href'], "style")
+    if filename is False:
+        continue
 
     file_text = read_file(filename)
 
@@ -206,8 +243,9 @@ if len(styles) != 0:
 # Example: <img src="img/example.svg">
 #
 for tag in soup.find_all('img', src=True):
-    filename = tag['src'].strip()
-    print("[image]  ", filename)
+    filename = parse_filename(tag['src'], "image")
+    if filename is False:
+        continue
 
     if filename.endswith('.svg'):
         file_text = read_file(filename)
@@ -225,7 +263,7 @@ for tag in soup.find_all('img', src=True):
 # ---
 # Save onto a single html file
 #
-print("> " + output_filename + ' | ' + now_string + ", build " + bcolors.BOLD + bcolors.YELLOW + "#" + build_no + bcolors.ENDC)
+print("> " + output_filename + ' | ' + now_string + ", build " + bcolors.BOLD + bcolors.BG_RED + "#" + build_no + bcolors.ENDC)
 
 final_html = str(soup)
 final_html = htmlmin.minify(final_html)
