@@ -24,8 +24,8 @@ import subprocess
 import sys
 import os.path
 import base64
-import configparser
 import htmlmin
+import json
 from datetime import datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
@@ -46,6 +46,26 @@ class bcolors:
     BG_YELLOW   = '\u001b[43;1m'
     BG_RED      = '\u001b[41;1m'
 
+def parse_filename(filename, info):
+    filename = filename.strip()
+
+    idx = filename.find("?")
+    if idx != -1:
+        filename = filename[:idx]
+
+    idx = filename.find("[-]")
+    if idx != -1:
+        filename = filename[:idx]
+
+    info = ("[" + info + "]").ljust(10, " ") + filename
+
+    if idx != -1 or filename in json_config["exclude"]:
+        print(info + bcolors.WARNING + "  excluded" + bcolors.ENDC)
+        return False
+
+    print(info)
+    return filename
+
 def read_file(filename, utf8 = True, res = None):
     try:
         if utf8:
@@ -61,7 +81,7 @@ def read_file(filename, utf8 = True, res = None):
     return content
 
 def minify(cli, content):
-    if cli:
+    if cli and cli != "":
         result = subprocess.run(cli.split(), 
                                 stdout=subprocess.PIPE, 
                                 stderr=subprocess.PIPE, 
@@ -74,34 +94,11 @@ def minify(cli, content):
 
     return content
 
-def parse_filename(filename, type):
-    filename = filename.strip()
-
-    idx = filename.find("+")
-    if idx != -1:
-        return False
-
-    idx = filename.find("?")
-    if idx != -1:
-        filename = filename[:idx]
-
-    type = ("[" + type + "]").ljust(10, " ")
-
-    if filename in exclude_files:
-        print(type + filename + bcolors.WARNING + "  excluded" + bcolors.ENDC)
-        return False
-
-    print(type + filename)
-    return filename
+base_dir_pair = os.path.split(sys.argv[0])
 
 # ---
 # Prepare input and output filenames
 #
-base_dir_pair = os.path.split(sys.argv[0])
-
-minifijs_cli = "uglifyjs"
-minificss_cli = "uglifycss"
-
 if len(sys.argv) > 1:
     input_filename = sys.argv[1]
 else:
@@ -112,61 +109,43 @@ if len(sys.argv) > 2:
 else:
     output_filename = base_dir_pair[1] + ".index.html"
 
+if input_filename == output_filename:
+    sys.exit("Ups, input and output filename are the same!")
+
 # ---
 # Handle config file and build number
 #
-now = datetime.now()
-now_string = now.strftime("%Y/%m/%d %H:%M:%S")
-
-config = configparser.ConfigParser()
-
-config_filename = "./." + base_dir_pair[1]
+config_filename = "." + base_dir_pair[1] + ".json"
 if os.path.exists(config_filename):
     print("< ", config_filename)
 else:
-    config_filename = base_dir_pair[0] + "/." + base_dir_pair[1]
-    if not os.path.exists(config_filename):
-        config_filename = None
-if config_filename is not None:
-    config.read(config_filename)
+    config_filename_home = base_dir_pair[0] + "/." + base_dir_pair[1] + ".json"
+    if os.path.exists(config_filename_home):
+        config_filename = config_filename_home
 
 try:
-    exclude_files = config["content"]["exclude"]
-    exclude_files = exclude_files.split(":")
+    f = open(config_filename)
+    json_config = json.load(f)
 except Exception as e:
-    exclude_files = []
+    json_config = {}
 
-try:
-    minifijs_cli = config["minify"]["js_cli"]
-except Exception as e:
-    pass
+if json_config.get("build_no") is None:
+    json_config["build_no"] = 0
 
-try:
-    input_filename = config["files"]["input"]
-except Exception as e:
-    pass
+if json_config.get("exclude") is None:
+    json_config["exclude"] = []
 
-try:
-    output_filename = config["files"]["output"]
-except Exception as e:
-    pass
+if json_config.get("js_cli") is None:
+    json_config["js_cli"] = "uglifyjs"
 
-try:
-    build_no = config["build"]["number"]
-except Exception as e:
-    build_no = "0"
-    config["build"] = {}
+if json_config.get("css_cli") is None:
+    json_config["css_cli"] = "uglifycss"
 
-build_no = str(int(build_no) + 1)
+json_config["build_no"] = json_config["build_no"] + 1
+json_config["build_timestamp"] =  datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
-config["build"]["number"] = build_no
-config["build"]["time_stamp"] = now_string
-
-with open(config_filename, 'w') as configfile:
-  config.write(configfile)
-
-if input_filename == output_filename:
-    sys.exit("Ups, input and output filename are the same!")
+with open(config_filename, "w") as outfile:
+    json.dump(json_config, outfile, indent=2)
 
 # ---
 # Read source file
@@ -201,12 +180,11 @@ scripts += (
     "\n\n" 
     "/* AUTO GENERATED */\n"
     "DEPOLY_VERSION = true;\n"
-    "DEPOLY_BUILD_NO = " + build_no + ";\n"
-    "DEPLOY_TIME_STAMP = '" + now_string + "';\n"
-    "\n"
+    "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";\n"
+    "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
 )
 
-scripts = minify(minifijs_cli, scripts)
+scripts = minify(json_config["js_cli"], scripts)
 
 new_script = soup.new_tag('script')
 new_script.string = scripts
@@ -230,7 +208,7 @@ for tag in soup.find_all('link', rel="stylesheet", href=True):
     tag.extract()
 
 if len(styles) != 0:
-    styles = minify(minificss_cli, styles)
+    styles = minify(json_config["css_cli"], styles)
 
     # insert styles if they exists
     new_style = soup.new_tag('style')
@@ -263,7 +241,11 @@ for tag in soup.find_all('img', src=True):
 # ---
 # Save onto a single html file
 #
-print("> " + output_filename + ' | ' + now_string + ", build " + bcolors.BOLD + bcolors.BG_RED + "#" + build_no + bcolors.ENDC)
+print((
+    "> " + output_filename + ' | ' + json_config["build_timestamp"] + 
+    ", build " + bcolors.BOLD + bcolors.YELLOW + 
+    "#" + str(json_config["build_no"]) + bcolors.ENDC
+))
 
 final_html = str(soup)
 final_html = htmlmin.minify(final_html)
