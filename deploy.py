@@ -78,8 +78,13 @@ def read_file(ref, type):
 
     return file_content
 
-def minify(cli, content):
+def minify(cli, content, info):
     if cli and cli != "":
+        count = content.count("\n")
+
+        info = ("[" + info + "]").ljust(10, " ")
+        print(info + bcolors.MAGENTA + str(count) + bcolors.ENDC + " lines minified")
+
         result = subprocess.run(cli.split(), 
                                 stdout=subprocess.PIPE, 
                                 stderr=subprocess.PIPE, 
@@ -189,7 +194,7 @@ scripts += (
     "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
 )
 
-scripts = minify(json_config["js_cli"], scripts)
+scripts = minify(json_config["js_cli"], scripts, "script")
 
 new_script = soup.new_tag('script')
 new_script.string = scripts
@@ -209,7 +214,7 @@ for tag in soup.find_all('link', rel="stylesheet", href=True):
     tag.extract()
 
 if len(styles) != 0:
-    styles = minify(json_config["css_cli"], styles)
+    styles = minify(json_config["css_cli"], styles, "style")
 
     # insert styles if they exists
     new_style = soup.new_tag('style')
@@ -242,9 +247,13 @@ for tag in soup.find_all('img', src=True):
             sys.exit("Ups, can't read " + filename)
 
         # replace filename with base64 of the content of the file
-        base64_file_content = base64.b64encode(file_content)
-        base64_ascii = base64_file_content.decode('ascii')
-        tag['src'] = "data:image/png;base64, {}".format(base64_ascii)
+        try:
+            base64_file_content = base64.b64encode(file_content)
+            base64_ascii = base64_file_content.decode('ascii')
+            tag['src'] = "data:image/png;base64, {}".format(base64_ascii)
+        except TypeError:
+            print("[image]   Can't embed " + filename)
+
 
 # ---
 # Save onto a single html file
@@ -260,5 +269,5 @@ final_html = htmlmin.minify(final_html)
 
 try:
     Path(output_filename).write_text(final_html, encoding="utf-8")
-except OSError:
+except IOError:
     sys.exit("Ups, can't write " + output_filename)
