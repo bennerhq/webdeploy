@@ -15,7 +15,7 @@
 # This version is inspired / extended from this stackoverflow post
 # https://stackoverflow.com/questions/44646481/merging-js-css-html-into-single-html
 #
-# /benner, 2023
+# /benner, Marts, 2023
 # jens@bennerhq.com
 #
 
@@ -66,19 +66,17 @@ def parse_filename(filename, info):
     print(info)
     return filename
 
-def read_file(filename, utf8 = True, res = None):
-    try:
-        if utf8:
-            content = Path(filename).read_text(encoding="utf-8")
-        else:
-            content = Path(filename).read_bytes()
-    except OSError:
-        if res != None:
-            content = res
-        else:
-            sys.exit("Ups, can't read " + filename)
+def read_file(ref, type):
+    filename = parse_filename(ref, type)
+    if filename is False:
+        return False
 
-    return content
+    try:
+        file_content = Path(filename).read_text(encoding="utf-8")
+    except OSError:
+        sys.exit("Ups, can't read " + filename)
+
+    return file_content
 
 def minify(cli, content):
     if cli and cli != "":
@@ -159,7 +157,10 @@ with open(config_filename, "w") as outfile:
 # Read source file
 #
 print("<", input_filename)
-original_html_text = read_file(input_filename)
+try:
+    original_html_text = Path(input_filename).read_text(encoding="utf-8")
+except OSError:
+    sys.exit("Ups, can't read " + input_filename)
 soup = BeautifulSoup(original_html_text, features="html.parser")
 
 # ---
@@ -170,11 +171,7 @@ soup = BeautifulSoup(original_html_text, features="html.parser")
 scripts = ""
 for tag in soup.find_all('script'):
     if tag.has_attr('src'):
-        filename = parse_filename(tag['src'], "script")
-        if filename is False:
-            continue
-
-        file_text = read_file(filename)
+        file_text = read_file(tag['src'], "script")
 
         scripts += "\n" + file_text + "\n"
     else:
@@ -183,7 +180,6 @@ for tag in soup.find_all('script'):
 
     tag.extract()
 
-# insert scripts if they exists
 scripts += (
     "\n\n" 
     "/* AUTO GENERATED */\n"
@@ -205,11 +201,7 @@ soup.html.body.append(new_script)
 #
 styles = ""
 for tag in soup.find_all('link', rel="stylesheet", href=True):
-    filename = parse_filename(tag['href'], "style")
-    if filename is False:
-        continue
-
-    file_text = read_file(filename)
+    file_text = read_file(tag['href'], "style")
 
     styles += "\n" + file_text + "\n"
 
@@ -234,13 +226,19 @@ for tag in soup.find_all('img', src=True):
         continue
 
     if filename.endswith('.svg'):
-        file_text = read_file(filename)
+        try:
+            file_text = Path(filename).read_text(encoding="utf-8")
+        except OSError:
+            sys.exit("Ups, can't read " + filename)
 
         # replace filename with svg content of the file
         svg = BeautifulSoup(file_text, "xml")
         tag.replace_with(svg)
     else:
-        file_content = read_file(filename, False)
+        try:
+            file_content = Path(filename).read_bytes
+        except OSError:
+            sys.exit("Ups, can't read " + filename)
 
         # replace filename with base64 of the content of the file
         base64_file_content = base64.b64encode(file_content)
