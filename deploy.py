@@ -137,10 +137,10 @@ if json_config.get("js_cli") is None:
 if json_config.get("css_cli") is None:
     json_config["css_cli"] = "uglifycss"
 
-if json_config.get("input_filename") is None:
+if json_config.get("input_filename") != None:
     input_filename = json_config["input_filename"]
 
-if json_config.get("output_filename") is None:
+if json_config.get("output_filename") != None:
     output_filename = json_config["output_filename"]
 
 if input_filename == output_filename:
