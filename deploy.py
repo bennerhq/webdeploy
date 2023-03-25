@@ -137,10 +137,10 @@ if json_config.get("js_cli") is None:
 if json_config.get("css_cli") is None:
     json_config["css_cli"] = "uglifycss"
 
-if json_config.get("input_filename") != None:
+if json_config.get("input_filename") is None:
     input_filename = json_config["input_filename"]
 
-if json_config.get("output_filename") != None:
+if json_config.get("output_filename") is None:
     output_filename = json_config["output_filename"]
 
 if input_filename == output_filename:
@@ -151,7 +151,10 @@ json_config["build_no"] = json_config["build_no"] + 1
 json_config["build_timestamp"] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
 with open(config_filename, "w") as outfile:
-    json.dump(json_config, outfile, indent=4)
+    try:
+        json.dump(json_config, outfile, indent=4)
+    except OSError:
+        sys.exit("Ups, can't write " + config_filename)
 
 # ---
 # Read source file
@@ -181,10 +184,8 @@ for tag in soup.find_all('script'):
     tag.extract()
 
 scripts += (
-    "\n\n" 
-    "/* AUTO GENERATED */\n"
-    "DEPOLY_VERSION = true;\n"
-    "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";\n"
+    "DEPOLY_VERSION = true;"
+    "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";"
     "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
 )
 
