@@ -109,16 +109,11 @@ if len(sys.argv) > 2:
 else:
     output_filename = base_dir_pair[1] + ".index.html"
 
-if input_filename == output_filename:
-    sys.exit("Ups, input and output filename are the same!")
-
 # ---
-# Handle config file and build number
+# Handle config file and build number / date stamp
 #
 config_filename = "." + base_dir_pair[1] + ".json"
-if os.path.exists(config_filename):
-    print("< ", config_filename)
-else:
+if os.path.exists(config_filename) is False:
     config_filename_home = base_dir_pair[0] + "/." + base_dir_pair[1] + ".json"
     if os.path.exists(config_filename_home):
         config_filename = config_filename_home
@@ -126,7 +121,10 @@ else:
 try:
     f = open(config_filename)
     json_config = json.load(f)
+
+    print("<", config_filename)
 except Exception as e:
+    print("+", config_filename)
     json_config = {}
 
 if json_config.get("build_no") is None:
@@ -141,11 +139,21 @@ if json_config.get("js_cli") is None:
 if json_config.get("css_cli") is None:
     json_config["css_cli"] = "uglifycss"
 
+if json_config.get("input_filename") != None:
+    input_filename = json_config["input_filename"]
+
+if json_config.get("output_filename") != None:
+    output_filename = json_config["output_filename"]
+
+if input_filename == output_filename:
+    sys.exit("Ups, input and output filename are the same!")
+
+# Update config file with the next build number
 json_config["build_no"] = json_config["build_no"] + 1
-json_config["build_timestamp"] =  datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+json_config["build_timestamp"] = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
 with open(config_filename, "w") as outfile:
-    json.dump(json_config, outfile, indent=2)
+    json.dump(json_config, outfile, indent=4)
 
 # ---
 # Read source file
@@ -236,7 +244,8 @@ for tag in soup.find_all('img', src=True):
 
         # replace filename with base64 of the content of the file
         base64_file_content = base64.b64encode(file_content)
-        tag['src'] = "data:image/png;base64, {}".format(base64_file_content.decode('ascii'))
+        base64_ascii = base64_file_content.decode('ascii')
+        tag['src'] = "data:image/png;base64, {}".format(base64_ascii)
 
 # ---
 # Save onto a single html file
