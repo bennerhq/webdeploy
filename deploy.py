@@ -78,11 +78,11 @@ def read_file(ref, info, is_uft8_ext = None):
     return file_content, uft8
 
 def minify(cli, content, type, attach = None):
-    if cli and cli != "" and content != "":
-        count = content.count("\n")
+    if cli != "" and content != "":
+        count_lines = content.count("\n")
 
         info = ("[" + type + "]").ljust(10, " ")
-        print(info + bcolors.MAGENTA + str(count) + bcolors.ENDC + " lines minified")
+        print(info + bcolors.MAGENTA + str(count_lines) + bcolors.ENDC + " lines minified")
 
         result = subprocess.run(cli.split(), 
                                 stdout=subprocess.PIPE, 
