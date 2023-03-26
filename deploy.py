@@ -4,9 +4,9 @@
 # The main purpose of the project to make it extreamly easy to upload a
 # "web application" by uploading a single .html file
 #
-# This is done by reading ./index.html and creating one fil (./index.deploy.html) 
+# This is done by reading ./index.html and creating one file (./deploy.index.html) 
 # that containes all external files refarnces (scripts, styles and images).
-# index.deploy.html is a self containes "application" without any dependecies
+# deploy.index.html is a self containes "application" without any dependecies
 # or referances to external files.
 #
 # It's not a "bullet proff" solution, but for simple "web application"
@@ -102,19 +102,16 @@ def minify(cli, content, type, attach = None):
     return content
 
 # ---
-# Default values
+# House keeping ...
 #
 base_name = os.path.basename(sys.argv[0])
-
-config_filename = "." + base_name + ".json"
-input_filename = "index.html"
-output_filename = base_name + ".index.html"
-
-silence = False
 
 # ---
 # Prepare input and output filenames fra args
 #
+input_filename = "index.html"
+output_filename = base_name + ".index.html"
+
 if len(sys.argv) > 1:
     input_filename = sys.argv[1]
 
@@ -124,41 +121,31 @@ if len(sys.argv) > 2:
 # ---
 # Handle config file and build number / date stamp
 #
+json_config = {
+    "build_no": 0,
+    "exclude": [],
+    "js_cli": "uglifyjs --toplevel --rename --no-annotations",
+    "css_cli": "uglifycss",
+    "html_cli": "html-minifier --remove-comments --remove-tag-whitespace --collapse-whitespace",
+    "silence": False,
+    "input_filename": input_filename,
+    "output_filename": output_filename
+}
+
+config_filename = "." + base_name + ".json"
 
 try:
     f = open(config_filename)
-    json_config = json.load(f)
+    json_loaded = json.load(f)
+
+    json_config = {**json_config, **json_loaded}
 except Exception as e:
-    json_config = {}
+    pass
 
-if json_config.get("build_no") is None:
-    json_config["build_no"] = 0
+if json_config["input_filename"] == json_config["output_filename"]:
+    sys.exit("Ups, input and output filename are equal!")
 
-if json_config.get("exclude") is None:
-    json_config["exclude"] = []
-
-if json_config.get("js_cli") is None:
-    json_config["js_cli"] = "uglifyjs --toplevel --rename --no-annotations"
-
-if json_config.get("css_cli") is None:
-    json_config["css_cli"] = "uglifycss"
-
-if json_config.get("html_cli") is None:
-    json_config["html_cli"] = "html-minifier  --remove-comments  --remove-tag-whitespace  --collapse-whitespace"
-
-if json_config.get("silence") != None:
-    silence = json_config["silence"]
-
-if json_config.get("input_filename") != None:
-    input_filename = json_config["input_filename"]
-
-if json_config.get("output_filename") != None:
-    output_filename = json_config["output_filename"]
-
-if input_filename == output_filename:
-    sys.exit("Ups, input and output filename are the same!")
-
-if silence is True:
+if json_config["silence"] is True:
     sys.stdout = open(os.devnull, 'w')
 
 # Update config file with the next build number
@@ -175,10 +162,10 @@ with open(config_filename, "w") as outfile:
 # Read source file
 #
 try:
-    print("<", input_filename)
-    original_html_text = Path(input_filename).read_text(encoding="utf-8")
+    print("<", json_config["input_filename"])
+    original_html_text = Path(json_config["input_filename"]).read_text(encoding="utf-8")
 except OSError:
-    sys.exit("Ups, can't read " + input_filename)
+    sys.exit("Ups, can't read " + json_config["input_filename"])
 
 soup = BeautifulSoup(original_html_text, features="html.parser")
 
@@ -252,16 +239,16 @@ minified_html = minify(json_config["html_cli"], html_text, "html")
 # ---
 # Save onto a single html file
 #
-if output_filename != "":
+if json_config["output_filename"] != "":
     try:
-        Path(output_filename).write_text(minified_html, encoding="utf-8")
+        Path(json_config["output_filename"]).write_text(minified_html, encoding="utf-8")
     except IOError:
-        sys.exit("Ups, can't write " + output_filename)
+        sys.exit("Ups, can't write " + json_config["output_filename"])
 else:
     print(minified_html)
 
 print((
-    "> " + output_filename + ' | ' + json_config["build_timestamp"] + 
+    "> " + json_config["output_filename"] + ' | ' + json_config["build_timestamp"] + 
     ", build " + bcolors.BOLD + bcolors.YELLOW + 
     "#" + str(json_config["build_no"]) + bcolors.ENDC
 ))
