@@ -24,7 +24,6 @@ import subprocess
 import sys
 import os.path
 import base64
-import htmlmin
 import json
 from datetime import datetime
 from pathlib import Path
@@ -46,8 +45,8 @@ class bcolors:
     BG_YELLOW   = '\u001b[43;1m'
     BG_RED      = '\u001b[41;1m'
 
-def parse_filename(filename, info):
-    filename = filename.strip()
+def read_file(ref, info, is_uft8_ext = None):
+    filename = ref.strip()
 
     idx = filename.find("?")
     if idx != -1:
@@ -62,27 +61,27 @@ def parse_filename(filename, info):
     if idx != -1 or filename in json_config["exclude"]:
         print(info + bcolors.WARNING + "  excluded" + bcolors.ENDC)
         return False
-
     print(info)
-    return filename
 
-def read_file(ref, type):
-    filename = parse_filename(ref, type)
-    if filename is False:
-        return False
+    uft8 = True
+    if is_uft8_ext != None and filename.endswith(is_uft8_ext) == False:
+        uft8 = False
 
     try:
-        file_content = Path(filename).read_text(encoding="utf-8")
+        if uft8:
+            file_content = Path(filename).read_text(encoding="utf-8")
+        else:
+            file_content = Path(filename).read_bytes()
     except OSError:
         sys.exit("Ups, can't read " + filename)
 
-    return file_content
+    return file_content, uft8
 
-def minify(cli, content, info):
-    if cli and cli != "":
+def minify(cli, content, type, attach = None):
+    if cli and cli != "" and content != "":
         count = content.count("\n")
 
-        info = ("[" + info + "]").ljust(10, " ")
+        info = ("[" + type + "]").ljust(10, " ")
         print(info + bcolors.MAGENTA + str(count) + bcolors.ENDC + " lines minified")
 
         result = subprocess.run(cli.split(), 
@@ -91,43 +90,45 @@ def minify(cli, content, info):
                                 text=True, 
                                 input=content)
         if result.stderr != "":
-            sys.exit("Minify failed " + result.stdout)
+            sys.exit("Minify failed " + result.stderr)
 
         content = result.stdout
 
+        if attach != None:
+            tag = soup.new_tag(type)
+            tag.string = content
+            attach.append(tag)
+
     return content
 
-base_dir_pair = os.path.split(sys.argv[0])
+# ---
+# Default values
+#
+base_name = os.path.basename(sys.argv[0])
+
+config_filename = "." + base_name + ".json"
+input_filename = "index.html"
+output_filename = base_name + ".index.html"
+
+silence = False
 
 # ---
-# Prepare input and output filenames
+# Prepare input and output filenames fra args
 #
 if len(sys.argv) > 1:
     input_filename = sys.argv[1]
-else:
-    input_filename = "index.html"
 
 if len(sys.argv) > 2:
     output_filename = sys.argv[2]
-else:
-    output_filename = base_dir_pair[1] + ".index.html"
 
 # ---
 # Handle config file and build number / date stamp
 #
-config_filename = "." + base_dir_pair[1] + ".json"
-if os.path.exists(config_filename) is False:
-    config_filename_home = base_dir_pair[0] + "/." + base_dir_pair[1] + ".json"
-    if os.path.exists(config_filename_home):
-        config_filename = config_filename_home
 
 try:
     f = open(config_filename)
     json_config = json.load(f)
-
-    print("<", config_filename)
 except Exception as e:
-    print("+", config_filename)
     json_config = {}
 
 if json_config.get("build_no") is None:
@@ -137,10 +138,16 @@ if json_config.get("exclude") is None:
     json_config["exclude"] = []
 
 if json_config.get("js_cli") is None:
-    json_config["js_cli"] = "uglifyjs"
+    json_config["js_cli"] = "uglifyjs --toplevel --rename --no-annotations"
 
 if json_config.get("css_cli") is None:
     json_config["css_cli"] = "uglifycss"
+
+if json_config.get("html_cli") is None:
+    json_config["html_cli"] = "html-minifier  --remove-comments  --remove-tag-whitespace  --collapse-whitespace"
+
+if json_config.get("silence") != None:
+    silence = json_config["silence"]
 
 if json_config.get("input_filename") != None:
     input_filename = json_config["input_filename"]
@@ -150,6 +157,9 @@ if json_config.get("output_filename") != None:
 
 if input_filename == output_filename:
     sys.exit("Ups, input and output filename are the same!")
+
+if silence is True:
+    sys.stdout = open(os.devnull, 'w')
 
 # Update config file with the next build number
 json_config["build_no"] = json_config["build_no"] + 1
@@ -164,11 +174,12 @@ with open(config_filename, "w") as outfile:
 # ---
 # Read source file
 #
-print("<", input_filename)
 try:
+    print("<", input_filename)
     original_html_text = Path(input_filename).read_text(encoding="utf-8")
 except OSError:
     sys.exit("Ups, can't read " + input_filename)
+
 soup = BeautifulSoup(original_html_text, features="html.parser")
 
 # ---
@@ -179,9 +190,9 @@ soup = BeautifulSoup(original_html_text, features="html.parser")
 scripts = ""
 for tag in soup.find_all('script'):
     if tag.has_attr('src'):
-        file_text = read_file(tag['src'], "script")
+        file_content, utf8 = read_file(tag['src'], "script")
 
-        scripts += "\n" + file_text + "\n"
+        scripts += "\n" + file_content + "\n"
     else:
         print("[script]  <script>")
         scripts += "\n" +  tag.string + "\n"
@@ -194,11 +205,7 @@ scripts += (
     "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
 )
 
-scripts = minify(json_config["js_cli"], scripts, "script")
-
-new_script = soup.new_tag('script')
-new_script.string = scripts
-soup.html.body.append(new_script)
+minify(json_config["js_cli"], scripts, "script", soup.html.body)
 
 # ---
 # Find <link> tags.
@@ -207,19 +214,13 @@ soup.html.body.append(new_script)
 #
 styles = ""
 for tag in soup.find_all('link', rel="stylesheet", href=True):
-    file_text = read_file(tag['href'], "style")
+    file_content, utf8 = read_file(tag['href'], "style")
 
-    styles += "\n" + file_text + "\n"
+    styles += "\n" + file_content + "\n"
 
     tag.extract()
 
-if len(styles) != 0:
-    styles = minify(json_config["css_cli"], styles, "style")
-
-    # insert styles if they exists
-    new_style = soup.new_tag('style')
-    new_style.string = styles
-    soup.html.head.append(new_style)
+minify(json_config["css_cli"], styles, "style", soup.html.head)
 
 # ---
 # Find <img> tags. 
@@ -227,47 +228,40 @@ if len(styles) != 0:
 # Example: <img src="img/example.svg">
 #
 for tag in soup.find_all('img', src=True):
-    filename = parse_filename(tag['src'], "image")
-    if filename is False:
-        continue
+    file_content, utf8 = read_file(tag['src'], "image", ".svg")
 
-    if filename.endswith('.svg'):
-        try:
-            file_text = Path(filename).read_text(encoding="utf-8")
-        except OSError:
-            sys.exit("Ups, can't read " + filename)
-
+    if utf8:
         # replace filename with svg content of the file
-        svg = BeautifulSoup(file_text, "xml")
+        svg = BeautifulSoup(file_content, "xml")
         tag.replace_with(svg)
     else:
-        try:
-            file_content = Path(filename).read_bytes
-        except OSError:
-            sys.exit("Ups, can't read " + filename)
-
         # replace filename with base64 of the content of the file
         try:
             base64_file_content = base64.b64encode(file_content)
             base64_ascii = base64_file_content.decode('ascii')
             tag['src'] = "data:image/png;base64, {}".format(base64_ascii)
         except TypeError:
-            print("[image]   Can't embed " + filename)
+            print(bcolors.WARNING + "[image]   Can't encode " + tag['src'] + bcolors.ENDC)
 
+# ---
+# Minifing html
+#
+html_text = str(soup)
+minified_html = minify(json_config["html_cli"], html_text, "html")
 
 # ---
 # Save onto a single html file
 #
+if output_filename != "":
+    try:
+        Path(output_filename).write_text(minified_html, encoding="utf-8")
+    except IOError:
+        sys.exit("Ups, can't write " + output_filename)
+else:
+    print(minified_html)
+
 print((
     "> " + output_filename + ' | ' + json_config["build_timestamp"] + 
     ", build " + bcolors.BOLD + bcolors.YELLOW + 
     "#" + str(json_config["build_no"]) + bcolors.ENDC
 ))
-
-final_html = str(soup)
-final_html = htmlmin.minify(final_html)
-
-try:
-    Path(output_filename).write_text(final_html, encoding="utf-8")
-except IOError:
-    sys.exit("Ups, can't write " + output_filename)
