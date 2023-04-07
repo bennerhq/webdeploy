@@ -129,7 +129,7 @@ json_config = {
     "silence": False,
     "input_filename": input_filename,
     "output_filename": output_filename,
-    "hot_fix": {}
+    "hot_fix_html": {}
 }
 
 config_filename = "." + base_filename + ".json"
