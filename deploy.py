@@ -57,7 +57,6 @@ def read_file(ref, info, is_uft8_ext = None):
         filename = filename[:idx]
 
     info = ("[" + info + "]").ljust(10, " ") + filename
-
     if idx != -1 or filename in json_config["exclude"]:
         print(info + bcolors.WARNING + "  excluded" + bcolors.ENDC)
         return False
@@ -104,13 +103,13 @@ def minify(cli, content, type, attach = None):
 # ---
 # House keeping ...
 #
-base_name = os.path.basename(sys.argv[0])
+base_filename = os.path.basename(sys.argv[0])
 
 # ---
 # Prepare input and output filenames fra args
 #
 input_filename = "index.html"
-output_filename = base_name + ".index.html"
+output_filename = base_filename + ".index.html"
 
 if len(sys.argv) > 1:
     input_filename = sys.argv[1]
@@ -129,10 +128,11 @@ json_config = {
     "html_cli": "html-minifier --remove-comments --remove-tag-whitespace --collapse-whitespace",
     "silence": False,
     "input_filename": input_filename,
-    "output_filename": output_filename
+    "output_filename": output_filename,
+    "hot_fix": {}
 }
 
-config_filename = "." + base_name + ".json"
+config_filename = "." + base_filename + ".json"
 
 try:
     f = open(config_filename)
@@ -235,6 +235,10 @@ for tag in soup.find_all('img', src=True):
 #
 html_text = str(soup)
 minified_html = minify(json_config["html_cli"], html_text, "html")
+
+hot_fix = json_config["hot_fix"]
+for (key, value) in hot_fix.items():
+    minified_html = minified_html.replace(key, value)
 
 # ---
 # Save onto a single html file
