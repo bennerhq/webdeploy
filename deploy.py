@@ -236,9 +236,10 @@ for tag in soup.find_all('img', src=True):
 html_text = str(soup)
 minified_html = minify(json_config["html_cli"], html_text, "html")
 
-hot_fix = json_config["hot_fix"]
-for (key, value) in hot_fix.items():
-    minified_html = minified_html.replace(key, value)
+if "hot_fix_html" in json_config:
+    hot_fix = json_config["hot_fix_html"]
+    for (key, value) in hot_fix.items():
+        minified_html = minified_html.replace(key, value)
 
 # ---
 # Save onto a single html file
