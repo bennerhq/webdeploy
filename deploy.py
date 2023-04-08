@@ -190,6 +190,11 @@ scripts += (
     "DEPOLY_VERSION = true;"
     "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";"
     "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
+    "if (DEPLOY_PRODUCTION === true) {"
+    "    console.log = function() {};"
+    "    console.warn = function() {};"
+    "    console.error = function() {};"
+    "}"
 )
 
 minify(json_config["js_cli"], scripts, "script", soup.html.body)
