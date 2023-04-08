@@ -77,7 +77,7 @@ def read_file(ref, info, is_uft8_ext = None):
     return file_content, uft8
 
 def minify(cli, content, type, attach = None):
-    if cli != "" and content != "":
+    if cli != "" and content != "" and json_config["cli_active"] != "no":
         count_lines = content.count("\n")
 
         info = ("[" + type + "]").ljust(10, " ")
@@ -93,10 +93,10 @@ def minify(cli, content, type, attach = None):
 
         content = result.stdout
 
-        if attach != None:
-            tag = soup.new_tag(type)
-            tag.string = content
-            attach.append(tag)
+    if attach != None:
+        tag = soup.new_tag(type)
+        tag.string = content
+        attach.append(tag)
 
     return content
 
@@ -122,7 +122,9 @@ if len(sys.argv) > 2:
 #
 json_config = {
     "build_no": 0,
+    "build_info": "yes",
     "exclude": [],
+    "cli_active": "no",
     "js_cli": "uglifyjs --toplevel --rename --no-annotations",
     "css_cli": "uglifycss",
     "html_cli": "html-minifier --remove-comments --remove-tag-whitespace --collapse-whitespace",
@@ -186,16 +188,17 @@ for tag in soup.find_all('script'):
 
     tag.extract()
 
-scripts += (
-    "DEPOLY_VERSION = true;"
-    "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";"
-    "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
-    "if (DEPLOY_PRODUCTION === true) {"
-    "    console.log = function() {};"
-    "    console.warn = function() {};"
-    "    console.error = function() {};"
-    "}"
-)
+if json_config["build_info"] == "yes":
+    scripts += (
+        "DEPOLY_VERSION = true;"
+        "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";"
+        "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
+        "if (DEPLOY_PRODUCTION === true) {"
+        "    console.log = function() {};"
+        "    console.warn = function() {};"
+        "    console.error = function() {};"
+        "}"
+    )
 
 minify(json_config["js_cli"], scripts, "script", soup.html.body)
 
