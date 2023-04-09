@@ -77,7 +77,7 @@ def read_file(ref, info, is_uft8_ext = None):
     return file_content, uft8
 
 def minify(cli, content, type, attach = None):
-    if cli != "" and content != "" and json_config["cli_active"] != "no":
+    if cli != "" and content != "" and json_config["cli_active"] == True:
         count_lines = content.count("\n")
 
         info = ("[" + type + "]").ljust(10, " ")
@@ -122,9 +122,13 @@ if len(sys.argv) > 2:
 #
 json_config = {
     "build_no": 0,
-    "build_info": "yes",
+    "build_info": True,
     "exclude": [],
-    "cli_active": "no",
+    "image": True,
+    "script": True,
+    "style": True,
+    "html": True,
+    "cli_active": True,
     "js_cli": "uglifyjs --toplevel --rename --no-annotations",
     "css_cli": "uglifycss",
     "html_cli": "html-minifier --remove-comments --remove-tag-whitespace --collapse-whitespace",
@@ -176,78 +180,89 @@ soup = BeautifulSoup(original_html_text, features="html.parser")
 #
 # Example: <script src="js/somescript.js"></script> or <script> ... </script>
 #
-scripts = ""
-for tag in soup.find_all('script'):
-    if tag.has_attr('src'):
-        file_content, utf8 = read_file(tag['src'], "script")
+if json_config["script"] == True:
+    scripts = ""
+    for tag in soup.find_all('script'):
+        if tag.has_attr('src'):
+            file_content, utf8 = read_file(tag['src'], "script")
 
-        scripts += "\n" + file_content + "\n"
-    else:
-        print("[script]  <script>")
-        scripts += "\n" +  tag.string + "\n"
+            scripts += "\n" + file_content + "\n"
+        else:
+            print("[script]  <script>")
+            scripts += "\n" +  tag.string + "\n"
 
-    tag.extract()
+        tag.extract()
 
-if json_config["build_info"] == "yes":
-    scripts += (
-        "DEPOLY_VERSION = true;"
-        "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";"
-        "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
-        "if (DEPLOY_PRODUCTION === true) {"
-        "    console.log = function() {};"
-        "    console.warn = function() {};"
-        "    console.error = function() {};"
-        "}"
-    )
+    if json_config["build_info"] == True:
+        scripts += (
+            "DEPOLY_VERSION = true;"
+            "DEPOLY_BUILD_NO = " + str(json_config["build_no"]) + ";"
+            "DEPLOY_TIME_STAMP = '" + json_config["build_timestamp"] + "';"
+            "if (DEPLOY_PRODUCTION === true) {"
+            "    console.log = () => {};"
+            "    console.warn = () => {};"
+            "    console.error = () => {};"
+            "}"
+        )
 
-minify(json_config["js_cli"], scripts, "script", soup.html.body)
+    minify(json_config["js_cli"], scripts, "script", soup.html.body)
 
 # ---
 # Find <link> tags.
 #
 # # Example: <link rel="stylesheet" href="css/somestyle.css">
 #
-styles = ""
-for tag in soup.find_all('link', rel="stylesheet", href=True):
-    file_content, utf8 = read_file(tag['href'], "style")
+if json_config["style"] == True:
+    styles = ""
 
-    styles += "\n" + file_content + "\n"
+    for tag in soup.find_all('link', rel="stylesheet", href=True):
+        file_content, utf8 = read_file(tag['href'], "style")
 
-    tag.extract()
+        styles += "\n" + file_content + "\n"
 
-minify(json_config["css_cli"], styles, "style", soup.html.head)
+        tag.extract()
+
+    for tag in soup.find_all('style'):
+        print("[style]   <style>")
+        scripts += "\n" +  tag.string + "\n"
+
+        tag.extract()
+
+    minify(json_config["css_cli"], styles, "style", soup.html.head)
 
 # ---
 # Find <img> tags. 
 #
 # Example: <img src="img/example.svg">
 #
-for tag in soup.find_all('img', src=True):
-    file_content, utf8 = read_file(tag['src'], "image", ".svg")
+if json_config["image"] == True:
+    for tag in soup.find_all('img', src=True):
+        file_content, utf8 = read_file(tag['src'], "image", ".svg")
 
-    if utf8:
-        # replace filename with svg content of the file
-        svg = BeautifulSoup(file_content, "xml")
-        tag.replace_with(svg)
-    else:
-        # replace filename with base64 of the content of the file
-        try:
-            base64_file_content = base64.b64encode(file_content)
-            base64_ascii = base64_file_content.decode('ascii')
-            tag['src'] = "data:image/png;base64, {}".format(base64_ascii)
-        except TypeError:
-            print(bcolors.WARNING + "[image]   Can't encode " + tag['src'] + bcolors.ENDC)
+        if utf8:
+            # replace filename with svg content of the file
+            svg = BeautifulSoup(file_content, "xml")
+            tag.replace_with(svg)
+        else:
+            # replace filename with base64 of the content of the file
+            try:
+                base64_file_content = base64.b64encode(file_content)
+                base64_ascii = base64_file_content.decode('ascii')
+                tag['src'] = "data:image/png;base64, {}".format(base64_ascii)
+            except TypeError:
+                print(bcolors.WARNING + "[image]   Can't encode " + tag['src'] + bcolors.ENDC)
 
 # ---
 # Minifing html
 #
-html_text = str(soup)
-minified_html = minify(json_config["html_cli"], html_text, "html")
+if json_config["html"] == True:
+    html_text = str(soup)
+    minified_html = minify(json_config["html_cli"], html_text, "html")
 
-if "hot_fix_html" in json_config:
-    hot_fix = json_config["hot_fix_html"]
-    for (key, value) in hot_fix.items():
-        minified_html = minified_html.replace(key, value)
+    if "hot_fix_html" in json_config:
+        hot_fix = json_config["hot_fix_html"]
+        for (key, value) in hot_fix.items():
+            minified_html = minified_html.replace(key, value)
 
 # ---
 # Save onto a single html file
